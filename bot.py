@@ -28,12 +28,14 @@ class Bot:
             print(f'Получено сообщение "{event.object.message["text"]}" '
                   f'от пользователя {event.object.message["from_id"]}')
             # print(event)
-            self.api.messages.send(message=event.object.message["text"],
+            self.api.messages.send(message='Сам ты ' + event.object.message["text"],
                                    random_id=random.randint(0, 2 ** 20),
                                    peer_id=event.object.message["peer_id"]
                                    )
         elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_TYPING_STATE:
             print('Пользователь печатает...')
+        else:
+            print(f'Я пока не умею это брабатывать - {event.type}')
 
 
 if __name__ == '__main__':
