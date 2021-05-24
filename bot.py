@@ -14,7 +14,15 @@ class Bot:
         self.long_poller = bot_longpoll.VkBotLongPoll(self.vk, self.group_id)
 
     def run(self):
-        pass
+        for event in self.long_poller.listen():
+            print('Получено событие')
+            try:
+                self.on_event(event=event)
+            except Exception as exc:
+                print(exc)
+
+    def on_event(self, event):
+        print(event)
 
 
 if __name__ == '__main__':
