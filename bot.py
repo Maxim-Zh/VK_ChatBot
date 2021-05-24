@@ -35,7 +35,7 @@ class Bot:
         elif event.type == vk_api.bot_longpoll.VkBotEventType.MESSAGE_TYPING_STATE:
             print('Пользователь печатает...')
         else:
-            print(f'Я пока не умею это брабатывать - {event.type}')
+            print(f'Я пока не умею это обрабатывать - {event.type}')
 
 
 if __name__ == '__main__':
