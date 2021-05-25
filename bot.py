@@ -5,13 +5,25 @@ import logging
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 from my_token import token
 
-group_id = 204762908
+GROUP_ID = 204762908
 log = logging.getLogger(name='bot_logger')
-log.setLevel(level=logging.DEBUG)
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s'))
-log.addHandler(stream_handler)
 
+
+def configure_logging():
+    log.setLevel(level=logging.DEBUG)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(logging.Formatter(fmt='%(levelname)s - %(message)s'))
+    stream_handler.setLevel(level=logging.INFO)
+
+    file_handler = logging.FileHandler(filename='bot_logger.log', mode='a', encoding='UTF-8', delay=False)
+    file_handler.setFormatter(logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s',
+                                                datefmt='%d-%m-%Y %H:%M:%S')
+                              )
+    file_handler.setLevel(level=logging.DEBUG)
+
+    log.addHandler(stream_handler)
+    log.addHandler(file_handler)
 
 
 class Bot:
@@ -31,18 +43,20 @@ class Bot:
 
     def on_event(self, event):
         if event.type == VkBotEventType.MESSAGE_NEW:
-            log.info(f'Получено сообщение "{event.object.message["text"]}" '
-                  f'от пользователя {event.object.message["from_id"]}')
+            log.debug(f'Получено сообщение "{event.object.message["text"]}" '
+                      f'от пользователя {event.object.message["from_id"]}'
+                      )
             self.api.messages.send(message='Сам ты ' + event.object.message["text"],
                                    random_id=random.randint(0, 2 ** 25),
                                    peer_id=event.object.message["peer_id"]
                                    )
         elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
-            log.info(f'Пользователь {event.object["from_id"]} печатает...')
+            log.debug(f'Пользователь {event.object["from_id"]} печатает...')
         else:
-            log.debug(f'Я пока не умею это обрабатывать - {event.type}')
+            log.info(f'Я пока не умею это обрабатывать - {event.type}')
 
 
 if __name__ == '__main__':
-    bot = Bot(group_id=group_id, token=token)
+    configure_logging()
+    bot = Bot(group_id=GROUP_ID, token=token)
     bot.run()
