@@ -3,8 +3,10 @@ import vk_api
 import random
 import logging
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
-from settings import TOKEN, GROUP_ID
-
+try:
+    from settings import TOKEN, GROUP_ID
+except ImportError:
+    exit('Copy settings.py.default to settings.py and set GROUP_ID and TOKEN')
 
 log = logging.getLogger(name='bot_logger')
 
@@ -28,14 +30,14 @@ def configure_logging():
 
 class Bot:
     """
-    Echo bot для vk.com
+    Echo bot for vk.com
 
     Use Python 3.9
     """
     def __init__(self, group_id, token):
         """
-        :param group_id: group id группы vk
-        :param token: секретный токен группы vk
+        :param group_id: group id @ vk.com
+        :param token: secret token
         """
         self.group_id = group_id
         self.token = token
@@ -44,31 +46,31 @@ class Bot:
         self.api = self.vk.get_api()
 
     def run(self):
-        """Запуск бота"""
+        """Run Bot"""
         for event in self.long_poller.listen():
             try:
                 self.on_event(event=event)
             except Exception:
-                log.exception('Ошибка в обработке события')
+                log.exception('Error in event processing')
 
     def on_event(self, event: VkBotEventType):
         """
-        Возвращает сообщение - текст
+        Send message back
         :param event:
         :return: None
         """
         if event.type == VkBotEventType.MESSAGE_NEW:
-            log.debug(f'Получено сообщение "{event.object.message["text"]}" '
-                      f'от пользователя {event.object.message["from_id"]}'
+            log.debug(f'Got message "{event.object.message["text"]}" '
+                      f'from user id {event.object.message["from_id"]}'
                       )
             self.api.messages.send(message='Сам ты ' + event.object.message["text"],
                                    random_id=random.randint(0, 2 ** 25),
                                    peer_id=event.object.message["peer_id"]
                                    )
         elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
-            log.debug(f'Пользователь {event.object["from_id"]} печатает...')
+            log.debug(f'User {event.object["from_id"]} typing...')
         else:
-            log.info(f'Я пока не умею это обрабатывать - {event.type}')
+            log.info(f"Can't process this- {event.type}")
 
 
 if __name__ == '__main__':
