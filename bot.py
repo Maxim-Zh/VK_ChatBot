@@ -4,7 +4,7 @@ import random
 import logging
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
 try:
-    from settings import TOKEN, GROUP_ID
+    import settings
 except ImportError:
     exit('Copy settings.py.default to settings.py and set GROUP_ID and TOKEN')
 
@@ -75,5 +75,5 @@ class Bot:
 
 if __name__ == '__main__':
     configure_logging()
-    bot = Bot(group_id=GROUP_ID, token=TOKEN)
+    bot = Bot(group_id=settings.GROUP_ID, token=settings.TOKEN)
     bot.run()
