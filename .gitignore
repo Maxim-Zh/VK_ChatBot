@@ -151,4 +151,4 @@ fabric.properties
 
 # Added on fly
 /.venv/
-/my_token.py
+/settings.py
