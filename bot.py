@@ -56,7 +56,7 @@ class Bot:
     def on_event(self, event: VkBotEventType):
         """
         Send message back
-        :param event:
+        :param event: VkBotMessageEvent object
         :return: None
         """
         if event.type == VkBotEventType.MESSAGE_NEW:
