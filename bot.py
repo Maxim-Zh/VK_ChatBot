@@ -53,7 +53,7 @@ class Bot:
             except Exception:
                 log.exception('Error in event processing')
 
-    def on_event(self, event: VkBotEventType):
+    def on_event(self, event):
         """
         Send message back
         :param event: VkBotMessageEvent object
