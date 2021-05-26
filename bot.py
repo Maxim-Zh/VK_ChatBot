@@ -2,7 +2,9 @@
 import vk_api
 import random
 import logging
+import handlers
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
+
 try:
     import settings
 except ImportError:
@@ -28,9 +30,19 @@ def configure_logging():
     log.addHandler(file_handler)
 
 
+class UserState:
+    """
+    UserState in Scenario
+    """
+    def __init__(self, scenario_name, scenario_step_name, context=None):
+        self.scenario_name = scenario_name
+        self.scenario_step_name = scenario_step_name
+        self.context = context or {}
+
+
 class Bot:
     """
-    Echo bot for vk.com
+    Registration Bot for vk.com
 
     Use Python 3.9
     """
@@ -44,6 +56,7 @@ class Bot:
         self.vk = vk_api.VkApi(token=token)
         self.long_poller = VkBotLongPoll(vk=self.vk, group_id=self.group_id)
         self.api = self.vk.get_api()
+        self.user_id_states = dict()  #user_id(peer_id) -> UserState
 
     def run(self):
         """Run Bot"""
@@ -55,22 +68,63 @@ class Bot:
 
     def on_event(self, event):
         """
-        Send message back
+        Chatting with user
         :param event: VkBotMessageEvent object
         :return: None
         """
-        if event.type == VkBotEventType.MESSAGE_NEW:
-            log.debug(f'Got message "{event.object.message["text"]}" '
-                      f'from user id {event.object.message["from_id"]}'
-                      )
-            self.api.messages.send(message='Сам ты ' + event.object.message["text"],
-                                   random_id=random.randint(0, 2 ** 25),
-                                   peer_id=event.object.message["peer_id"]
-                                   )
-        elif event.type == VkBotEventType.MESSAGE_TYPING_STATE:
-            log.debug(f'User {event.object["from_id"]} typing...')
-        else:
+        if event.type != VkBotEventType.MESSAGE_NEW:
             log.info(f"Can't process this- {event.type}")
+            return
+
+        user_id = event.object.message["peer_id"]
+        text = event.object.message["text"]
+
+        if user_id in self.user_id_states:
+            text_to_send = self.continue_scenario(user_id=user_id, text=text)
+        else:
+            # search intent
+            for intent in settings.INTENTS:
+                if any(token in str(text).lower() for token in intent['tokens']):
+                    if intent['answer']:
+                        text_to_send = intent['answer']
+                    else:
+                        text_to_send = self.start_scenario(user_id=user_id, scenario_name=intent['scenario'])
+                    break
+            else:
+                text_to_send = settings.DEFAULT_ANSWER
+
+        self.api.messages.send(message=text_to_send,
+                               random_id=random.randint(0, 2 ** 25),
+                               peer_id=user_id
+                               )
+
+    def start_scenario(self, user_id, scenario_name):
+        scenario = settings.SCENARIOS[scenario_name]
+        first_step = scenario['first_step']
+        step = scenario['steps'][first_step]
+        text_to_send = step['text']
+        self.user_id_states[user_id] = UserState(scenario_name=scenario_name, scenario_step_name=first_step)
+        return text_to_send
+
+    def continue_scenario(self, user_id, text):
+        state = self.user_id_states[user_id]
+        steps = settings.SCENARIOS[state.scenario_name]['steps']
+        step = steps[state.scenario_step_name]
+        handler = getattr(handlers, step['handler'])
+        if handler(text=text, context=state.context):
+            # next step
+            next_step = steps[step['next_step']]
+            text_to_send = next_step['text'].format(**state.context)
+            if next_step['next_step']:
+                # switch to next step
+                state.scenario_step_name = step['next_step']
+            else:
+                # finish scenario
+                self.user_id_states.pop(user_id)
+        else:
+            # retry
+            text_to_send = step['failure_text'].format(**state.context)
+        return text_to_send
 
 
 if __name__ == '__main__':
