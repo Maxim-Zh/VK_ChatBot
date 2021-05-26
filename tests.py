@@ -9,7 +9,7 @@ class Test(TestCase):
     RAW_EVENT = {'type': 'message_new', 'object':
                      {'message':
                           {'date': 1621943414, 'from_id': 17192721, 'id': 175, 'out': 0, 'peer_id': 17192721,
-                           'text': 'k', 'conversation_message_id': 164, 'fwd_messages': [], 'important': False,
+                           'text': 'Привет!', 'conversation_message_id': 164, 'fwd_messages': [], 'important': False,
                            'random_id': 0, 'attachments': [], 'is_hidden': False},
                       'client_info':
                           {'button_actions': ['text', 'vkpay', 'open_app', 'location', 'open_link', 'callback',
