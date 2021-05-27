@@ -3,7 +3,9 @@ import vk_api
 import random
 import logging
 import handlers
+from pony.orm import db_session
 from vk_api.bot_longpoll import VkBotLongPoll, VkBotEventType
+from models import UserState, Registration
 
 try:
     import settings
@@ -30,16 +32,6 @@ def configure_logging():
     log.addHandler(file_handler)
 
 
-class UserState:
-    """
-    UserState in Scenario
-    """
-    def __init__(self, scenario_name, scenario_step_name, context=None):
-        self.scenario_name = scenario_name
-        self.scenario_step_name = scenario_step_name
-        self.context = context or {}
-
-
 class Bot:
     """
     Registration Bot for vk.com
@@ -56,7 +48,6 @@ class Bot:
         self.vk = vk_api.VkApi(token=token)
         self.long_poller = VkBotLongPoll(vk=self.vk, group_id=self.group_id)
         self.api = self.vk.get_api()
-        self.user_id_states = dict()  # user_id(peer_id): UserState object
 
     def run(self):
         """Run Bot"""
@@ -66,6 +57,7 @@ class Bot:
             except Exception:
                 log.exception('Error in event processing')
 
+    @db_session
     def on_event(self, event):
         """
         Chatting with user
@@ -78,9 +70,10 @@ class Bot:
 
         user_id = event.object.message["peer_id"]
         text = event.object.message["text"]
+        current_user_state = UserState.get(user_id=str(user_id))
 
-        if user_id in self.user_id_states:
-            text_to_send = self.continue_scenario(user_id=user_id, text=text)
+        if current_user_state is not None:
+            text_to_send = self.continue_scenario(text=text, current_user_state=current_user_state)
         else:
             # search intent
             for intent in settings.INTENTS:
@@ -104,28 +97,28 @@ class Bot:
         first_step = scenario['first_step']
         step = scenario['steps'][first_step]
         text_to_send = step['text']
-        self.user_id_states[user_id] = UserState(scenario_name=scenario_name, scenario_step_name=first_step)
+        UserState(user_id=str(user_id), scenario_name=scenario_name, scenario_step_name=first_step, context={})
         return text_to_send
 
-    def continue_scenario(self, user_id, text):
-        current_user = self.user_id_states[user_id]
-        steps = settings.SCENARIOS[current_user.scenario_name]['steps']
-        step = steps[current_user.scenario_step_name]
+    def continue_scenario(self, text, current_user_state):
+        steps = settings.SCENARIOS[current_user_state.scenario_name]['steps']
+        step = steps[current_user_state.scenario_step_name]
         handler = getattr(handlers, step['handler'])
-        if handler(text=text, context=current_user.context):
+        if handler(text=text, context=current_user_state.context):
             # next step
             next_step = steps[step['next_step']]
-            text_to_send = next_step['text'].format(**current_user.context)
+            text_to_send = next_step['text'].format(**current_user_state.context)
             if next_step['next_step']:
                 # switch to next step
-                current_user.scenario_step_name = step['next_step']
+                current_user_state.scenario_step_name = step['next_step']
             else:
                 # finish scenario
-                log.info('User added to Database: {name} - {email}'.format(**current_user.context))
-                self.user_id_states.pop(user_id)
+                log.info('User added to Database: {name} - {email}'.format(**current_user_state.context))
+                Registration(name=current_user_state.context['name'], email=current_user_state.context['email'])
+                current_user_state.delete()
         else:
             # retry
-            text_to_send = step['failure_text'].format(**current_user.context)
+            text_to_send = step['failure_text'].format(**current_user_state.context)
         return text_to_send
 
 
