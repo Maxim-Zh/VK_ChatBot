@@ -1,8 +1,11 @@
-from unittest import TestCase
-from unittest.mock import patch, Mock, ANY
-from vk_api.bot_longpoll import VkBotMessageEvent
+#!/usr/bin/env python 3
 
+import settings
+from unittest import TestCase
+from unittest.mock import patch, Mock
+from vk_api.bot_longpoll import VkBotMessageEvent
 from bot import Bot
+from copy import deepcopy
 
 
 class Test(TestCase):
@@ -16,6 +19,27 @@ class Test(TestCase):
                                               'intent_subscribe', 'intent_unsubscribe'],
                            'keyboard': True, 'inline_keyboard': True, 'carousel': True, 'lang_id': 3}},
                  'group_id': 204762908, 'event_id': '1c3f5ca24dec0aff3eb6185018fb649e701a0ada'}
+
+    INPUTS = [
+        'Привет',
+        'Когда будет выставка?',
+        'Где она пройдет?',
+        'Зарегай меня',
+        'Ма',
+        'Максим',
+        'maks@ma',
+        'maks@maks.ru',
+    ]
+    EXPECTED_OUTPUTS = [
+        settings.INTENTS[0]['answer'],
+        settings.INTENTS[1]['answer'],
+        settings.INTENTS[2]['answer'],
+        settings.SCENARIOS['registration']['steps']['step_1']['text'],
+        settings.SCENARIOS['registration']['steps']['step_1']['failure_text'],
+        settings.SCENARIOS['registration']['steps']['step_2']['text'],
+        settings.SCENARIOS['registration']['steps']['step_2']['failure_text'],
+        settings.SCENARIOS['registration']['steps']['step_3']['text'].format(name='Максим', email='maks@maks.ru'),
+    ]
 
     def test_run(self):
         count = 5
@@ -35,20 +59,29 @@ class Test(TestCase):
                 bot.on_event.assert_any_call(event=obj)
                 assert bot.on_event.call_count == count
 
-    def test_on_event(self):
-        event = VkBotMessageEvent(raw=self.RAW_EVENT)
-
+    def test_scenario(self):
         send_mock = Mock()
+        api_mock = Mock()
+        api_mock.messages.send = send_mock
 
-        with patch('bot.vk_api.VkApi'):
-            with patch('bot.VkBotLongPoll'):
-                bot = Bot('', '')
-                bot.api = Mock()
-                bot.api.messages.send = send_mock
+        events = []
+        for input_text in self.INPUTS:
+            event = deepcopy(self.RAW_EVENT)
+            event['object']['message']['text'] = input_text
+            events.append(VkBotMessageEvent(event))
 
-                bot.on_event(event=event)
+        long_poller_mock = Mock()
+        long_poller_mock.listen = Mock(return_value=events)
 
-        send_mock.assert_called_once_with(message='Сам ты ' + self.RAW_EVENT['object']['message']['text'],
-                                          random_id=ANY,
-                                          peer_id=self.RAW_EVENT['object']['message']['peer_id']
-                                          )
+        with patch('bot.VkBotLongPoll', return_value=long_poller_mock):
+            bot = Bot(group_id='', token='')
+            bot.api = api_mock
+            bot.run()
+
+        assert send_mock.call_count == len(self.INPUTS)
+
+        real_outputs = []
+        for call in send_mock.call_args_list:
+            args, kwargs = call
+            real_outputs.append(kwargs['message'])
+        assert real_outputs == self.EXPECTED_OUTPUTS
