@@ -56,7 +56,7 @@ class Bot:
         self.vk = vk_api.VkApi(token=token)
         self.long_poller = VkBotLongPoll(vk=self.vk, group_id=self.group_id)
         self.api = self.vk.get_api()
-        self.user_id_states = dict()  #user_id(peer_id) -> UserState
+        self.user_id_states = dict()  # user_id(peer_id): UserState object
 
     def run(self):
         """Run Bot"""
@@ -73,7 +73,7 @@ class Bot:
         :return: None
         """
         if event.type != VkBotEventType.MESSAGE_NEW:
-            log.info(f"Can't process this- {event.type}")
+            log.info(f"Can't process this - {event.type}")
             return
 
         user_id = event.object.message["peer_id"]
@@ -84,7 +84,8 @@ class Bot:
         else:
             # search intent
             for intent in settings.INTENTS:
-                if any(token in str(text).lower() for token in intent['tokens']):
+                log.debug(f'User gets intent - {intent["name"]}')
+                if any(token in text.lower() for token in intent['tokens']):
                     if intent['answer']:
                         text_to_send = intent['answer']
                     else:
@@ -107,23 +108,24 @@ class Bot:
         return text_to_send
 
     def continue_scenario(self, user_id, text):
-        state = self.user_id_states[user_id]
-        steps = settings.SCENARIOS[state.scenario_name]['steps']
-        step = steps[state.scenario_step_name]
+        current_user = self.user_id_states[user_id]
+        steps = settings.SCENARIOS[current_user.scenario_name]['steps']
+        step = steps[current_user.scenario_step_name]
         handler = getattr(handlers, step['handler'])
-        if handler(text=text, context=state.context):
+        if handler(text=text, context=current_user.context):
             # next step
             next_step = steps[step['next_step']]
-            text_to_send = next_step['text'].format(**state.context)
+            text_to_send = next_step['text'].format(**current_user.context)
             if next_step['next_step']:
                 # switch to next step
-                state.scenario_step_name = step['next_step']
+                current_user.scenario_step_name = step['next_step']
             else:
                 # finish scenario
+                log.info('User added to Database: {name} - {email}'.format(**current_user.context))
                 self.user_id_states.pop(user_id)
         else:
             # retry
-            text_to_send = step['failure_text'].format(**state.context)
+            text_to_send = step['failure_text'].format(**current_user.context)
         return text_to_send
 
 
