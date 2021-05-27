@@ -1,11 +1,19 @@
 #!/usr/bin/env python 3
-
 import settings
 from unittest import TestCase
 from unittest.mock import patch, Mock
 from vk_api.bot_longpoll import VkBotMessageEvent
+from pony.orm import db_session, rollback
 from bot import Bot
 from copy import deepcopy
+
+
+def isolate_db(test_func):
+    def wrapper(*args, **kwargs):
+        with db_session:
+            test_func(*args, **kwargs)
+            rollback()
+    return wrapper
 
 
 class Test(TestCase):
@@ -30,6 +38,7 @@ class Test(TestCase):
         'maks@ma',
         'maks@maks.ru',
     ]
+
     EXPECTED_OUTPUTS = [
         settings.INTENTS[0]['answer'],
         settings.INTENTS[1]['answer'],
@@ -59,6 +68,7 @@ class Test(TestCase):
                 bot.on_event.assert_any_call(event=obj)
                 assert bot.on_event.call_count == count
 
+    @isolate_db
     def test_scenario(self):
         send_mock = Mock()
         api_mock = Mock()
