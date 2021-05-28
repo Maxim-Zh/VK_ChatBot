@@ -5,6 +5,8 @@ Handler - функция, принимающая на вход text (текст 
 """
 import re
 
+from generate_ticket import generate_ticket
+
 re_name = re.compile(pattern=r'^[\w\-\s]{3,30}$')
 re_email = re.compile(pattern=r'\b[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\b')
 
@@ -25,3 +27,7 @@ def handle_email(text, context):
         return True
     else:
         return False
+
+
+def handle_generate_ticket(text, context):
+    return generate_ticket(name=context['name'], email=context['email'])
