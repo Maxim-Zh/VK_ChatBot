@@ -7,6 +7,8 @@ from pony.orm import db_session, rollback
 from bot import Bot
 from copy import deepcopy
 
+from generate_ticket import generate_ticket
+
 
 def isolate_db(test_func):
     def wrapper(*args, **kwargs):
@@ -95,3 +97,14 @@ class Test(TestCase):
             args, kwargs = call
             real_outputs.append(kwargs['message'])
         assert real_outputs == self.EXPECTED_OUTPUTS
+
+    def test_image_generator(self):
+        with open(file='files/avatar_for_test.png', mode='rb') as avatar_test_file:
+            avatar_mock = Mock()
+            avatar_mock.content = avatar_test_file.read()
+
+        with patch('requests.get', return_value=avatar_mock):
+            ticket_file = generate_ticket(name='name', email='email@email.com')
+
+        with open(file='files/ticket_for_test.png', mode='rb') as test_file:
+            assert ticket_file.read() == test_file.read()
