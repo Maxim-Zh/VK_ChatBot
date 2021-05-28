@@ -64,6 +64,7 @@ class Test(TestCase):
             with patch('bot.VkBotLongPoll', return_value=long_poller_listen_mock):
                 bot = Bot(group_id='', token='')
                 bot.on_event = Mock()
+                bot.send_image = Mock()
                 bot.run()
 
                 bot.on_event.assert_called()
@@ -88,6 +89,7 @@ class Test(TestCase):
         with patch('bot.VkBotLongPoll', return_value=long_poller_mock):
             bot = Bot(group_id='', token='')
             bot.api = api_mock
+            bot.send_image = Mock()
             bot.run()
 
         assert send_mock.call_count == len(self.INPUTS)
