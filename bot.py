@@ -1,4 +1,5 @@
 #!/usr/bin/env python 3
+import requests
 import vk_api
 import random
 import logging
@@ -73,41 +74,61 @@ class Bot:
         current_user_state = UserState.get(user_id=str(user_id))
 
         if current_user_state is not None:
-            text_to_send = self.continue_scenario(text=text, current_user_state=current_user_state)
+            self.continue_scenario(text=text, current_user_state=current_user_state, user_id=user_id)
         else:
             # search intent
             for intent in settings.INTENTS:
                 log.debug(f'User gets intent - {intent["name"]}')
                 if any(token in text.lower() for token in intent['tokens']):
                     if intent['answer']:
-                        text_to_send = intent['answer']
+                        self.send_text(text_to_send=intent['answer'], user_id=user_id)
                     else:
-                        text_to_send = self.start_scenario(user_id=user_id, scenario_name=intent['scenario'])
+                        self.start_scenario(user_id=user_id, scenario_name=intent['scenario'], text=text)
                     break
             else:
-                text_to_send = settings.DEFAULT_ANSWER
+                self.send_text(text_to_send=settings.DEFAULT_ANSWER, user_id=user_id)
 
+    def send_text(self, text_to_send, user_id):
         self.api.messages.send(message=text_to_send,
                                random_id=random.randint(0, 2 ** 25),
                                peer_id=user_id
                                )
 
-    def start_scenario(self, user_id, scenario_name):
+    def send_image(self, image, user_id):
+        upload_url = self.api.photos.getMessagesUploadServer()['upload_url']
+        upload_info = requests.post(url=upload_url, files={'photo': ('image.png', image, 'image/png')}).json()
+        image_info = self.api.photos.saveMessagesPhoto(**upload_info)
+        owner_id = image_info[0]['owner_id']
+        media_id = image_info[0]['id']
+        attachment = f'photo{owner_id}_{media_id}'
+        self.api.messages.send(attachment=attachment,
+                               random_id=random.randint(0, 2 ** 25),
+                               peer_id=user_id
+                               )
+
+    def what_to_send(self, step, user_id, text, context):
+        if 'text' in step:
+            self.send_text(text_to_send=step['text'].format(**context), user_id=user_id)
+        if 'image' in step:
+            handler = getattr(handlers, step['image'])
+            image = handler(text=text, context=context)
+            self.send_image(image=image, user_id=user_id)
+
+    def start_scenario(self, user_id, scenario_name, text):
         scenario = settings.SCENARIOS[scenario_name]
         first_step = scenario['first_step']
         step = scenario['steps'][first_step]
-        text_to_send = step['text']
+        self.what_to_send(step=step, user_id=user_id, text=text, context={})
         UserState(user_id=str(user_id), scenario_name=scenario_name, scenario_step_name=first_step, context={})
-        return text_to_send
 
-    def continue_scenario(self, text, current_user_state):
+    def continue_scenario(self, text, current_user_state, user_id):
         steps = settings.SCENARIOS[current_user_state.scenario_name]['steps']
         step = steps[current_user_state.scenario_step_name]
         handler = getattr(handlers, step['handler'])
         if handler(text=text, context=current_user_state.context):
             # next step
             next_step = steps[step['next_step']]
-            text_to_send = next_step['text'].format(**current_user_state.context)
+            self.what_to_send(step=next_step, user_id=user_id, text=text, context=current_user_state.context)
             if next_step['next_step']:
                 # switch to next step
                 current_user_state.scenario_step_name = step['next_step']
@@ -118,8 +139,7 @@ class Bot:
                 current_user_state.delete()
         else:
             # retry
-            text_to_send = step['failure_text'].format(**current_user_state.context)
-        return text_to_send
+            self.send_text(text_to_send=step['failure_text'].format(**current_user_state.context), user_id=user_id)
 
 
 if __name__ == '__main__':
